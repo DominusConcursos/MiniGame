@@ -1,13 +1,7 @@
-// --- DADOS FALLBACK (Caso o fetch falhe ou sem servidor local) ---
-const FALLBACK_DECK = [
-    { front: "Erro de Carregamento", back: "Verifique se está rodando em um servidor local." },
-    { front: "Declarar a guerra", back: "União (Exclusiva)" }
-];
-
 // --- GERENCIADOR DE TELAS ---
 const viewManager = {
     show(viewId) {
-        ['menu', 'game', 'results', 'settings', 'history'].forEach(id => { // Adicionado 'history'
+        ['menu', 'game', 'results', 'settings', 'history', 'editor'].forEach(id => {
             const el = document.getElementById(`view-${id}`);
             if (el) el.classList.add('hidden');
         });
@@ -27,36 +21,44 @@ const modalManager = {
     btnConfirm: document.getElementById('modal-btn-confirm'),
     btnCancel: document.getElementById('modal-btn-cancel'),
 
-    // Função genérica para abrir o modal
+    // MODO 1: Confirmação (Sim/Não)
     confirm(title, message, onConfirmAction, confirmText = "Confirmar") {
-        // 1. Configura o conteúdo
         this.titleEl.innerText = title;
         this.msgEl.innerText = message;
         this.btnConfirm.innerText = confirmText;
+        this.btnCancel.classList.remove('hidden'); // Mostra cancelar
 
-        // 2. Remove listeners antigos para evitar múltiplos disparos (clonagem simples resolve)
-        const newConfirmBtn = this.btnConfirm.cloneNode(true);
-        const newCancelBtn = this.btnCancel.cloneNode(true);
-        
-        this.btnConfirm.parentNode.replaceChild(newConfirmBtn, this.btnConfirm);
-        this.btnCancel.parentNode.replaceChild(newCancelBtn, this.btnCancel);
-
-        // 3. Atualiza as referências
-        this.btnConfirm = newConfirmBtn;
-        this.btnCancel = newCancelBtn;
-
-        // 4. Adiciona os novos eventos
-        this.btnConfirm.addEventListener('click', () => {
-            onConfirmAction();
-            this.close();
-        });
-
-        this.btnCancel.addEventListener('click', () => {
-            this.close();
-        });
-
-        // 5. Mostra a tela
+        this._setupListeners(onConfirmAction);
         this.overlay.classList.remove('hidden');
+    },
+
+    // MODO 2: Alerta Simples (Apenas OK)
+    alert(title, message) {
+        this.titleEl.innerText = title;
+        this.msgEl.innerText = message;
+        this.btnConfirm.innerText = "OK";
+        this.btnCancel.classList.add('hidden'); // Esconde cancelar
+
+        this._setupListeners(() => {}); // Ação vazia
+        this.overlay.classList.remove('hidden');
+    },
+
+    _setupListeners(onConfirm) {
+        // Limpa eventos antigos clonando os botões
+        const newConfirm = this.btnConfirm.cloneNode(true);
+        const newCancel = this.btnCancel.cloneNode(true);
+        
+        this.btnConfirm.parentNode.replaceChild(newConfirm, this.btnConfirm);
+        this.btnCancel.parentNode.replaceChild(newCancel, this.btnCancel);
+
+        this.btnConfirm = newConfirm;
+        this.btnCancel = newCancel;
+
+        this.btnConfirm.addEventListener('click', () => {
+            if(onConfirm) onConfirm();
+            this.close();
+        });
+        this.btnCancel.addEventListener('click', () => this.close());
     },
 
     close() {
@@ -102,11 +104,122 @@ const historyManager = {
     }
 };
 
+// --- EDITOR DE DECK ---
+const editor = {
+    workingDeck: [],
+    currentName: "Meu Novo Deck",
+    selectedIndex: -1,
+
+    init(mode) {
+        if (mode === 'create') {
+            this.workingDeck = [];
+            this.currentName = "";
+            this.addCard(); 
+        } else if (mode === 'edit') {
+            this.workingDeck = JSON.parse(JSON.stringify(game.deck));
+            this.currentName = game.currentDeckName.replace('.json', '');
+        }
+        
+        document.getElementById('editor-deck-name').value = this.currentName;
+        this.renderList();
+        this.selectCard(0);
+        viewManager.show('editor');
+    },
+
+    renderList() {
+        const listEl = document.getElementById('editor-list');
+        listEl.innerHTML = '';
+        document.getElementById('editor-total').innerText = this.workingDeck.length;
+
+        this.workingDeck.forEach((card, index) => {
+            const item = document.createElement('div');
+            item.className = `p-3 rounded cursor-pointer text-xs truncate border ${index === this.selectedIndex ? 'bg-blue-900/50 border-blue-500 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:bg-gray-700'}`;
+            item.innerText = `${index + 1}. ${card.front || '(Vazio)'}`;
+            item.onclick = () => this.selectCard(index);
+            listEl.appendChild(item);
+        });
+    },
+
+    selectCard(index) {
+        if (this.workingDeck.length === 0) return;
+        this.selectedIndex = index;
+        
+        document.getElementById('editor-current-index').innerText = index + 1;
+        document.getElementById('editor-input-front').value = this.workingDeck[index].front;
+        document.getElementById('editor-input-back').value = this.workingDeck[index].back;
+        
+        this.renderList();
+    },
+
+    updateCurrent(field, value) {
+        if (this.selectedIndex === -1) return;
+        this.workingDeck[this.selectedIndex][field] = value;
+        if (field === 'front') this.renderList();
+    },
+
+    addCard() {
+        this.workingDeck.push({ front: "", back: "" });
+        this.selectCard(this.workingDeck.length - 1);
+        document.getElementById('editor-input-front').focus();
+    },
+
+    deleteCurrent() {
+        if (this.workingDeck.length <= 1) return modalManager.alert("Ação Negada", "O deck deve ter pelo menos 1 card.");
+        if (confirm("Deletar este card?")) {
+            this.workingDeck.splice(this.selectedIndex, 1);
+            const newIndex = Math.max(0, this.selectedIndex - 1);
+            this.selectCard(newIndex);
+        }
+    },
+
+    saveToBrowser() {
+        const nameInput = document.getElementById('editor-deck-name').value;
+        const name = nameInput ? nameInput : "Meu Deck Salvo";
+        const cleanDeck = this.workingDeck.filter(c => c.front.trim() !== "" && c.back.trim() !== "");
+        
+        if (cleanDeck.length === 0) return modalManager.alert("Incompleto", "Adicione pelo menos uma pergunta e resposta válida.");
+
+        // Salva no LocalStorage
+        const saveData = {
+            name: name,
+            deck: cleanDeck,
+            date: new Date().toISOString()
+        };
+        localStorage.setItem('flashcards_saved_deck', JSON.stringify(saveData));
+
+        // Carrega no jogo
+        game.deck = cleanDeck;
+        game.currentDeckName = name;
+        
+        document.getElementById('deck-info').innerText = `Deck Salvo no App: ${name}`;
+        document.getElementById('deck-info').className = "mt-2 text-xs text-green-400 italic";
+        
+        viewManager.show('menu');
+        // Pequeno feedback visual (opcional)
+        modalManager.alert("Sucesso!", "Deck salvo na memória do aplicativo.");
+    },
+
+    downloadJSON() {
+        const name = document.getElementById('editor-deck-name').value || "backup-deck";
+        const cleanDeck = this.workingDeck.filter(c => c.front.trim() !== "" && c.back.trim() !== "");
+        
+        if (cleanDeck.length === 0) return modalManager.alert("Vazio", "Não há nada para baixar.");
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(cleanDeck, null, 2));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", name + ".json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+};
+
 // --- ENGINE DO JOGO ---
 const game = {
     deck: [],
     activeDeck: [],
-    currentDeckName: "Deck Padrão (CF/88)",
+    currentDeckName: "",
     currentCardIndex: 0,
     mode: 'free',
     timer: null,
@@ -115,17 +228,27 @@ const game = {
     stats: { correct: 0, wrong: 0, skipped: 0 },
     isCardFlipped: false,
 
-    async init() {
-        // Tenta carregar o JSON externo
-        try {
-            const response = await fetch('game1.json');
-            if (!response.ok) throw new Error("Falha na rede");
-            this.deck = await response.json();
-            document.getElementById('deck-info').innerText = "Deck Padrão Carregado (JSON)";
-        } catch (error) {
-            console.warn("Não foi possível carregar game1.json (provavelmente CORS/Localfile). Usando fallback.", error);
-            this.deck = [...FALLBACK_DECK]; 
-            document.getElementById('deck-info').innerText = "Modo Offline (Fallback Ativo)";
+    init() {
+        // Tenta carregar deck salvo no navegador
+        const savedData = localStorage.getItem('flashcards_saved_deck');
+        
+        if (savedData) {
+            try {
+                const parsed = JSON.parse(savedData);
+                this.deck = parsed.deck;
+                this.currentDeckName = parsed.name;
+                
+                const info = document.getElementById('deck-info');
+                info.innerText = `Restaurado: ${parsed.name}`;
+                info.className = "mt-2 text-xs text-blue-400 italic";
+            } catch (e) {
+                this.deck = []; // Erro ao ler
+            }
+        } else {
+            this.deck = [];
+            const info = document.getElementById('deck-info');
+            info.innerText = "Nenhum deck salvo. Crie ou carregue um.";
+            info.className = "mt-2 text-xs text-gray-500";
         }
 
         this.setupEventListeners();
@@ -162,6 +285,39 @@ const game = {
                 historyManager.renderTable();
             }
         });
+
+        // LISTENERS DO EDITOR ---
+        
+        // Botões do Menu
+        document.getElementById('btn-create-deck').addEventListener('click', () => editor.init('create'));
+        document.getElementById('btn-edit-deck').addEventListener('click', () => {
+            if (game.deck.length === 0) return modalManager.alert("Atenção", "Nenhum deck carregado para editar.");
+            editor.init('edit');
+        });
+
+        // Inputs do Editor (Tempo Real)
+        document.getElementById('editor-input-front').addEventListener('input', (e) => editor.updateCurrent('front', e.target.value));
+        document.getElementById('editor-input-back').addEventListener('input', (e) => editor.updateCurrent('back', e.target.value));
+
+        // Botões de Ação do Editor
+        document.getElementById('btn-editor-add-new').addEventListener('click', () => editor.addCard());
+        document.getElementById('btn-editor-delete-card').addEventListener('click', () => editor.deleteCurrent());
+        
+        // Novo botão de Salvar Interno
+        document.getElementById('btn-editor-save-local').addEventListener('click', () => editor.saveToBrowser());
+        
+        // Botão de Download (Backup) - Note que mudamos o ID no HTML para btn-editor-download
+        const btnDownload = document.getElementById('btn-editor-download'); // Verifica se existe caso não tenha atualizado o HTML ainda
+        if(btnDownload) btnDownload.addEventListener('click', () => editor.downloadJSON());
+        
+        document.getElementById('btn-editor-cancel').addEventListener('click', () => {
+            modalManager.confirm(
+                "Descartar alterações?", 
+                "Se sair agora, o novo deck não será salvo.", 
+                () => viewManager.show('menu'), 
+                "Sair sem Salvar"
+            );
+        });
     },
 
     handleFileUpload(e) {
@@ -177,10 +333,10 @@ const game = {
                     info.innerText = `Deck: ${file.name} (${json.length} cards)`;
                     info.className = "mt-2 text-xs text-green-400 italic";
                 } else {
-                    alert("JSON inválido. Formato esperado: [{'front': '...', 'back': '...'}]");
+                    modalManager.alert("Erro no Arquivo", "JSON inválido. Use o formato array com objetos 'front' e 'back'.");
                 }
             } catch (err) {
-                alert("Erro ao ler o arquivo JSON.");
+                modalManager.alert("Erro", "Falha ao ler o arquivo.");
             }
         };
         reader.readAsText(file);
@@ -199,7 +355,7 @@ const game = {
 
     start() {
         if (this.deck.length === 0) {
-            alert("Nenhum card carregado.");
+            modalManager.alert("Ops!", "Nenhum deck carregado para jogar.");
             return;
         }
         
