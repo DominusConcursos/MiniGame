@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flashcards: Competências CF/88</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen flex flex-col font-sans">
+
+<header class="bg-gray-800 p-4 shadow-lg flex justify-center items-center border-b border-gray-700">
+    <h1 class="text-xl font-bold text-blue-400">Flashcards Engine <span class="text-xs text-gray-500">v1.2</span></h1>
+</header>
+
+<main class="flex-grow flex items-center justify-center p-4 relative">
+
+    <section id="view-menu" class="w-full max-w-md space-y-6 text-center">
+        <div class="mb-8">
+            <h2 class="text-3xl font-bold mb-2">Menu Principal</h2>
+            <p class="text-gray-400 text-sm">Carregue seu deck ou jogue o padrão.</p>
+        </div>
+
+        <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
+            <label class="block text-sm font-medium text-gray-300 mb-2">Carregar Arquivo JSON</label>
+            <input type="file" id="file-input" accept=".json" class="block w-full text-sm text-gray-400
+                file:mr-4 file:py-2 file:px-4
+                file:rounded-full file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-600 file:text-white
+                hover:file:bg-blue-700 cursor-pointer"/>
+            <p id="deck-info" class="mt-2 text-xs text-yellow-500 italic">Carregando deck...</p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+            <button id="btn-mode-free" class="mode-btn p-3 rounded bg-gray-700 hover:bg-gray-600 border-2 border-blue-500 transition-colors">
+                Modo Livre
+            </button>
+            <button id="btn-mode-speed" class="mode-btn p-3 rounded bg-gray-700 hover:bg-gray-600 border-2 border-transparent opacity-60 transition-colors">
+                Modo Velocidade (60s)
+            </button>
+        </div>
+
+        <button id="btn-start" class="w-full py-4 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-lg shadow-lg transform transition hover:scale-105">
+            PLAY
+        </button>
+
+        <button id="btn-history" class="w-full py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-bold text-sm text-blue-300 shadow transition">
+            📜 Ver Histórico
+        </button>
+        
+        <button id="btn-settings" class="text-sm text-gray-500 underline hover:text-white cursor-pointer bg-transparent border-none">
+            Configurações / Instruções
+        </button>
+    </section>
+
+    <section id="view-history" class="hidden w-full max-w-2xl flex flex-col h-full">
+        <h2 class="text-2xl font-bold mb-4 text-center">Histórico de Partidas</h2>
+        
+        <div class="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden mb-6 flex-grow">
+            <div class="overflow-y-auto max-h-[60vh]">
+                <table class="w-full text-left border-collapse">
+                    <thead class="bg-gray-900 text-xs uppercase text-gray-400 sticky top-0">
+                        <tr>
+                            <th class="p-3">Data</th>
+                            <th class="p-3">Deck</th>
+                            <th class="p-3 text-green-500">OK</th>
+                            <th class="p-3 text-red-500">X</th>
+                            <th class="p-3">Tempo</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list" class="text-sm divide-y divide-gray-700">
+                        </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="flex gap-4">
+            <button id="btn-history-back" class="flex-1 py-3 bg-gray-700 hover:bg-gray-600 rounded font-bold">Voltar</button>
+            <button id="btn-history-reset" class="flex-1 py-3 bg-red-900/50 hover:bg-red-900 border border-red-800 rounded font-bold text-red-200">Limpar Histórico</button>
+        </div>
+    </section>
+
+    <section id="view-game" class="hidden w-full max-w-2xl flex flex-col items-center">
+        <div class="w-full max-w-md flex justify-between items-center mb-6 px-2">
+            <div class="flex flex-col items-center bg-gray-800/80 px-4 py-2 rounded-lg border border-green-900 min-w-[80px]">
+                <span class="text-[10px] uppercase text-gray-400 tracking-wider">Acertos</span>
+                <span id="score-correct" class="text-2xl font-bold text-green-400 leading-none">0</span>
+            </div>
+
+            <div class="flex flex-col items-center justify-center w-16 h-16 bg-gray-800 rounded-full border-2 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+                <span id="timer-display" class="text-xl font-mono font-bold text-white">--</span>
+            </div>
+
+            <div class="flex flex-col items-center bg-gray-800/80 px-4 py-2 rounded-lg border border-red-900 min-w-[80px]">
+                <span class="text-[10px] uppercase text-gray-400 tracking-wider">Erros</span>
+                <span id="score-wrong" class="text-2xl font-bold text-red-400 leading-none">0</span>
+            </div>
+        </div>
+
+        <div class="perspective-1000 w-full h-80 cursor-pointer group mb-8" id="card-container">
+            <div class="card-inner text-center transform-style-3d shadow-2xl rounded-xl border border-gray-600">
+                <div class="absolute w-full h-full backface-hidden bg-gray-800 rounded-xl flex flex-col justify-center items-center p-6">
+                    <h3 class="text-xs uppercase tracking-widest text-blue-400 mb-4">Pergunta</h3>
+                    <p id="card-front-text" class="text-xl md:text-2xl font-semibold leading-relaxed">Carregando...</p>
+                    <p class="mt-4 text-xs text-gray-500">(Toque para virar)</p>
+                </div>
+                <div class="absolute w-full h-full backface-hidden bg-gray-700 rounded-xl flex flex-col justify-center items-center p-6 rotate-y-180 border-2 border-blue-500/30">
+                    <h3 class="text-xs uppercase tracking-widest text-green-400 mb-4">Resposta</h3>
+                    <p id="card-back-text" class="text-lg md:text-xl font-medium text-white leading-relaxed">...</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full max-w-md space-y-4">
+            <div id="controls-reveal" class="flex gap-4">
+                <button id="btn-skip" class="flex-1 py-4 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-200 font-semibold shadow-lg transition">Não Sei (Pular)</button>
+                <button id="btn-flip" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold shadow-lg transition">Mostrar Resposta</button>
+            </div>
+            <div id="controls-judge" class="hidden flex gap-4">
+                <button id="btn-wrong" class="flex-1 py-4 bg-red-600 hover:bg-red-500 rounded-lg text-white font-bold shadow-lg transition">Errei ❌</button>
+                <button id="btn-correct" class="flex-1 py-4 bg-green-600 hover:bg-green-500 rounded-lg text-white font-bold shadow-lg transition">Acertei ✅</button>
+            </div>
+        </div>
+
+        <button id="btn-quit" class="mt-8 text-red-400 text-sm hover:underline bg-transparent border-none cursor-pointer">Sair do Jogo</button>
+    </section>
+
+    <section id="view-results" class="hidden w-full max-w-md text-center">
+        <h2 class="text-4xl font-bold mb-2 text-white">Fim de Jogo!</h2>
+        <p class="text-gray-400 mb-8">Veja seu desempenho</p>
+
+        <div class="grid grid-cols-2 gap-4 mb-8">
+            <div class="bg-gray-800 p-4 rounded border border-green-900">
+                <p class="text-3xl font-bold text-green-400" id="res-correct">0</p>
+                <p class="text-xs uppercase text-gray-500">Acertos</p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded border border-red-900">
+                <p class="text-3xl font-bold text-red-400" id="res-wrong">0</p>
+                <p class="text-xs uppercase text-gray-500">Erros</p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded border border-gray-700">
+                <p class="text-3xl font-bold text-blue-400" id="res-skipped">0</p>
+                <p class="text-xs uppercase text-gray-500">Pulados</p>
+            </div>
+            <div class="bg-gray-800 p-4 rounded border border-gray-700">
+                <p class="text-3xl font-bold text-yellow-400" id="res-total">0</p>
+                <p class="text-xs uppercase text-gray-500">Cartas Vistas</p>
+            </div>
+        </div>
+
+        <button id="btn-back-menu" class="w-full py-3 bg-blue-600 hover:bg-blue-700 rounded font-bold transition">Voltar ao Menu</button>
+    </section>
+
+    <section id="view-settings" class="hidden w-full max-w-md bg-gray-800 p-6 rounded-lg border border-gray-700">
+        <h3 class="text-xl font-bold mb-4">Config</h3>
+        <ul class="text-sm text-gray-300 list-disc pl-5 space-y-2 mb-6">
+            <li>Carregue um JSON no formato <code>[{"front": "P", "back": "R"}]</code>.</li>
+            <li>No modo velocidade, você tem 60 segundos.</li>
+            <li>Seja honesto na autoavaliação!</li>
+        </ul>
+        <h4 class="font-bold mb-2">JSON Exemplo (Copie e salve):</h4>
+            <textarea class="w-full h-32 bg-gray-900 text-xs font-mono p-2 rounded mb-4 border border-gray-600" readonly>[
+                {"front": "Emitir Moeda", "back": "União (Competência Exclusiva - Art. 21)"},
+                {"front": "Cuidar da saúde", "back": "Competência Comum (Todos - Art. 23)"}
+                ]
+            </textarea>
+        <button id="btn-settings-back" class="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded transition">Voltar</button>
+    </section>
+
+</main>
+
+<div id="modal-overlay" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 transition-opacity duration-200">
+    <div class="bg-gray-800 border border-gray-600 p-6 rounded-lg shadow-2xl max-w-sm w-full mx-4 transform scale-100">
+        
+        <h3 id="modal-title" class="text-xl font-bold text-white mb-2">Atenção</h3>
+        
+        <p id="modal-message" class="text-gray-300 mb-6 text-sm leading-relaxed">
+            Tem certeza que deseja realizar esta ação?
+        </p>
+        
+        <div class="flex justify-end gap-3">
+            <button id="modal-btn-cancel" class="px-4 py-2 rounded border border-gray-600 hover:bg-gray-700 text-gray-300 text-sm font-medium transition">
+                Cancelar
+            </button>
+            <button id="modal-btn-confirm" class="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white text-sm font-bold shadow-lg transition">
+                Confirmar
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="script.js" defer></script>
+</body>
+</html>

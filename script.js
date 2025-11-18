@@ -1,0 +1,359 @@
+// --- DADOS FALLBACK (Caso o fetch falhe ou sem servidor local) ---
+const FALLBACK_DECK = [
+    { front: "Erro de Carregamento", back: "Verifique se está rodando em um servidor local." },
+    { front: "Declarar a guerra", back: "União (Exclusiva)" }
+];
+
+// --- GERENCIADOR DE TELAS ---
+const viewManager = {
+    show(viewId) {
+        ['menu', 'game', 'results', 'settings', 'history'].forEach(id => { // Adicionado 'history'
+            const el = document.getElementById(`view-${id}`);
+            if (el) el.classList.add('hidden');
+        });
+        const target = document.getElementById(`view-${viewId}`);
+        if (target) target.classList.remove('hidden');
+        
+        // LINHA NOVA: Renderiza tabela se for histórico
+        if(viewId === 'history') historyManager.renderTable();
+    }
+};
+
+// --- GERENCIADOR DE MODAIS (Popups) ---
+const modalManager = {
+    overlay: document.getElementById('modal-overlay'),
+    titleEl: document.getElementById('modal-title'),
+    msgEl: document.getElementById('modal-message'),
+    btnConfirm: document.getElementById('modal-btn-confirm'),
+    btnCancel: document.getElementById('modal-btn-cancel'),
+
+    // Função genérica para abrir o modal
+    confirm(title, message, onConfirmAction, confirmText = "Confirmar") {
+        // 1. Configura o conteúdo
+        this.titleEl.innerText = title;
+        this.msgEl.innerText = message;
+        this.btnConfirm.innerText = confirmText;
+
+        // 2. Remove listeners antigos para evitar múltiplos disparos (clonagem simples resolve)
+        const newConfirmBtn = this.btnConfirm.cloneNode(true);
+        const newCancelBtn = this.btnCancel.cloneNode(true);
+        
+        this.btnConfirm.parentNode.replaceChild(newConfirmBtn, this.btnConfirm);
+        this.btnCancel.parentNode.replaceChild(newCancelBtn, this.btnCancel);
+
+        // 3. Atualiza as referências
+        this.btnConfirm = newConfirmBtn;
+        this.btnCancel = newCancelBtn;
+
+        // 4. Adiciona os novos eventos
+        this.btnConfirm.addEventListener('click', () => {
+            onConfirmAction();
+            this.close();
+        });
+
+        this.btnCancel.addEventListener('click', () => {
+            this.close();
+        });
+
+        // 5. Mostra a tela
+        this.overlay.classList.remove('hidden');
+    },
+
+    close() {
+        this.overlay.classList.add('hidden');
+    }
+};
+
+// --- GERENCIADOR DE HISTÓRICO ---
+const historyManager = {
+    STORAGE_KEY: 'flashcards_history_v1',
+    get() {
+        const data = localStorage.getItem(this.STORAGE_KEY);
+        return data ? JSON.parse(data) : [];
+    },
+    add(entry) {
+        const history = this.get();
+        history.unshift(entry);
+        if(history.length > 50) history.pop();
+        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(history));
+    },
+    clear() { localStorage.removeItem(this.STORAGE_KEY); },
+    renderTable() {
+        const tbody = document.getElementById('history-list');
+        tbody.innerHTML = '';
+        const history = this.get();
+
+        if (history.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Nenhum histórico encontrado.</td></tr>';
+            return;
+        }
+        history.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = "border-b border-gray-700 hover:bg-gray-700/50";
+            tr.innerHTML = `
+                <td class="p-3 text-gray-300 text-xs">${item.date}</td>
+                <td class="p-3 text-blue-300 text-xs font-bold">${item.deck}</td>
+                <td class="p-3 text-green-400 font-bold">${item.correct}</td>
+                <td class="p-3 text-red-400 font-bold">${item.wrong}</td>
+                <td class="p-3 text-gray-400 text-xs">${item.time}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+};
+
+// --- ENGINE DO JOGO ---
+const game = {
+    deck: [],
+    activeDeck: [],
+    currentDeckName: "Deck Padrão (CF/88)",
+    currentCardIndex: 0,
+    mode: 'free',
+    timer: null,
+    timeElapsed: 0,
+    timeLeft: 60,
+    stats: { correct: 0, wrong: 0, skipped: 0 },
+    isCardFlipped: false,
+
+    async init() {
+        // Tenta carregar o JSON externo
+        try {
+            const response = await fetch('game1.json');
+            if (!response.ok) throw new Error("Falha na rede");
+            this.deck = await response.json();
+            document.getElementById('deck-info').innerText = "Deck Padrão Carregado (JSON)";
+        } catch (error) {
+            console.warn("Não foi possível carregar game1.json (provavelmente CORS/Localfile). Usando fallback.", error);
+            this.deck = [...FALLBACK_DECK]; 
+            document.getElementById('deck-info').innerText = "Modo Offline (Fallback Ativo)";
+        }
+
+        this.setupEventListeners();
+    },
+
+    setupEventListeners() {
+        // Inputs
+        document.getElementById('file-input').addEventListener('change', (e) => this.handleFileUpload(e));
+        
+        // Botões de Menu
+        document.getElementById('btn-mode-free').addEventListener('click', () => this.setMode('free'));
+        document.getElementById('btn-mode-speed').addEventListener('click', () => this.setMode('speed'));
+        document.getElementById('btn-start').addEventListener('click', () => this.start());
+        document.getElementById('btn-settings').addEventListener('click', () => viewManager.show('settings'));
+        
+        // Botões de Jogo
+        document.getElementById('card-container').addEventListener('click', () => this.flip()); // Flip ao clicar no card
+        document.getElementById('btn-flip').addEventListener('click', () => this.flip());
+        document.getElementById('btn-skip').addEventListener('click', () => this.skipCard());
+        document.getElementById('btn-wrong').addEventListener('click', () => this.submitAnswer(false));
+        document.getElementById('btn-correct').addEventListener('click', () => this.submitAnswer(true));
+        document.getElementById('btn-quit').addEventListener('click', () => this.quit());
+        
+        // Botões de Navegação
+        document.getElementById('btn-back-menu').addEventListener('click', () => location.reload());
+        document.getElementById('btn-settings-back').addEventListener('click', () => viewManager.show('menu'));
+
+        // LISTENERS DE HISTÓRICO
+        document.getElementById('btn-history').addEventListener('click', () => viewManager.show('history'));
+        document.getElementById('btn-history-back').addEventListener('click', () => viewManager.show('menu'));
+        document.getElementById('btn-history-reset').addEventListener('click', () => {
+            if(confirm("Apagar todo o histórico?")) {
+                historyManager.clear();
+                historyManager.renderTable();
+            }
+        });
+    },
+
+    handleFileUpload(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const json = JSON.parse(event.target.result);
+                if (Array.isArray(json) && json.length > 0 && json[0].front && json[0].back) {
+                    this.deck = json;
+                    const info = document.getElementById('deck-info');
+                    info.innerText = `Deck: ${file.name} (${json.length} cards)`;
+                    info.className = "mt-2 text-xs text-green-400 italic";
+                } else {
+                    alert("JSON inválido. Formato esperado: [{'front': '...', 'back': '...'}]");
+                }
+            } catch (err) {
+                alert("Erro ao ler o arquivo JSON.");
+            }
+        };
+        reader.readAsText(file);
+    },
+
+    setMode(mode) {
+        this.mode = mode;
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.classList.remove('border-blue-500', 'opacity-100');
+            btn.classList.add('border-transparent', 'opacity-60');
+        });
+        const activeBtn = document.getElementById(`btn-mode-${mode}`);
+        activeBtn.classList.add('border-blue-500', 'opacity-100');
+        activeBtn.classList.remove('border-transparent', 'opacity-60');
+    },
+
+    start() {
+        if (this.deck.length === 0) {
+            alert("Nenhum card carregado.");
+            return;
+        }
+        
+        // Reset de variáveis
+        this.stats = { correct: 0, wrong: 0, skipped: 0 };
+        this.activeDeck = this.shuffleArray([...this.deck]);
+        this.currentCardIndex = 0;
+        this.isCardFlipped = false;
+        this.timeElapsed = 0; // Reinicia contador real
+
+        this.updateStatsDisplay();
+        viewManager.show('game');
+        
+        this.loadCardUI();
+
+        // Lógica de Timer
+        if (this.mode === 'speed') {
+            this.timeLeft = 60;
+            this.startTimerSpeed();
+        } else {
+            this.startTimerFree();
+        }
+    },
+
+    // Timer para Modo Velocidade (Decrementa limite, Incrementa decorrido)
+    startTimerSpeed() {
+        const timerDisplay = document.getElementById('timer-display');
+        timerDisplay.innerText = this.timeLeft;
+        
+        if (this.timer) clearInterval(this.timer);
+        
+        this.timer = setInterval(() => {
+            this.timeLeft--;
+            this.timeElapsed++; // AGORA CONTA O TEMPO
+            timerDisplay.innerText = this.timeLeft;
+            
+            if (this.timeLeft <= 0) {
+                this.endGame();
+            }
+        }, 1000);
+    },
+
+    // Timer para Modo Livre (Apenas incrementa decorrido visualmente ou em background)
+    startTimerFree() {
+        const timerDisplay = document.getElementById('timer-display');
+        timerDisplay.innerText = "0"; // Começa do 0
+        
+        if (this.timer) clearInterval(this.timer);
+
+        this.timer = setInterval(() => {
+            this.timeElapsed++; // AGORA CONTA O TEMPO
+            timerDisplay.innerText = this.timeElapsed; // Mostra o tempo subindo
+        }, 1000);
+    },
+
+    loadCardUI() {
+        if (this.currentCardIndex >= this.activeDeck.length) {
+            this.endGame();
+            return;
+        }
+
+        const cardData = this.activeDeck[this.currentCardIndex];
+        const cardContainer = document.getElementById('card-container');
+        
+        cardContainer.classList.remove('card-flip');
+        this.isCardFlipped = false;
+
+        // Delay pequeno para evitar glitch visual durante a animação de reset
+        setTimeout(() => {
+            document.getElementById('card-front-text').innerText = cardData.front;
+            document.getElementById('card-back-text').innerText = cardData.back;
+        }, 200);
+
+        document.getElementById('controls-reveal').classList.remove('hidden');
+        document.getElementById('controls-judge').classList.add('hidden');
+    },
+
+    flip() {
+        if (this.isCardFlipped) return;
+        document.getElementById('card-container').classList.add('card-flip');
+        this.isCardFlipped = true;
+        document.getElementById('controls-reveal').classList.add('hidden');
+        document.getElementById('controls-judge').classList.remove('hidden');
+    },
+
+    skipCard() {
+        this.stats.skipped++;
+        this.nextCard();
+    },
+
+    submitAnswer(isCorrect) {
+        if (isCorrect) {
+            this.stats.correct++;
+        } else {
+            this.stats.wrong++;
+            // LÓGICA DO SHAKE
+            const view = document.getElementById('view-game');
+            view.classList.remove('animate-shake');
+            void view.offsetWidth; // Hack para reiniciar animação CSS
+            view.classList.add('animate-shake');
+        }
+        this.updateStatsDisplay();
+        this.nextCard();
+    },
+
+    nextCard() {
+        this.currentCardIndex++;
+        this.loadCardUI();
+    },
+
+    updateStatsDisplay() {
+        document.getElementById('score-correct').innerText = this.stats.correct;
+        document.getElementById('score-wrong').innerText = this.stats.wrong;
+    },
+
+    quit() {
+        modalManager.confirm(
+            "Desistir do Jogo?", 
+            "Todo o seu progresso atual será perdido e você voltará ao menu.",
+            () => {
+                // Ação que acontece se o usuário clicar em "Confirmar"
+                this.endGame(); 
+            },
+            "Sim, Sair" // Texto opcional do botão
+        );
+    },
+
+    endGame() {
+        if (this.timer) clearInterval(this.timer);
+        const now = new Date();
+        historyManager.add({
+            date: now.toLocaleDateString() + ' ' + now.toLocaleTimeString().slice(0,5),
+            deck: this.currentDeckName || "Deck Padrão",
+            correct: this.stats.correct,
+            wrong: this.stats.wrong,
+            time: this.timeElapsed + 's'
+        });
+        
+        document.getElementById('res-correct').innerText = this.stats.correct;
+        document.getElementById('res-wrong').innerText = this.stats.wrong;
+        document.getElementById('res-skipped').innerText = this.stats.skipped;
+        document.getElementById('res-total').innerText = this.stats.correct + this.stats.wrong + this.stats.skipped;
+        
+        viewManager.show('results');
+    },
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+};
+
+// Inicializa quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', () => game.init());

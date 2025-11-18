@@ -1,0 +1,40 @@
+/* Configurações 3D para o Card Flip */
+.perspective-1000 {
+    perspective: 1000px;
+}
+
+.transform-style-3d {
+    transform-style: preserve-3d;
+}
+
+.backface-hidden {
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden; /* Compatibilidade Safari */
+}
+
+.rotate-y-180 {
+    transform: rotateY(180deg);
+}
+
+/* Classes de controle de estado */
+.card-inner {
+    transition: transform 0.6s;
+    width: 100%;
+    height: 100%;
+    position: relative;
+}
+
+.card-flip .card-inner {
+    transform: rotateY(180deg);
+}
+
+/* Animação de Erro (Shake) */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+.animate-shake {
+    animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
