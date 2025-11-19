@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Flashcards: Competências CF/88</title>
+    <title>MiniGame Flashcards</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="bg-gray-900 text-white min-h-screen flex flex-col font-sans">
 
 <header class="bg-gray-800 p-4 shadow-lg flex justify-center items-center border-b border-gray-700">
-    <h1 class="text-xl font-bold text-blue-400">Flashcards Engine <span class="text-xs text-gray-500">v1.2</span></h1>
+    <h1 class="text-xl font-bold text-blue-400">Flashcards Engine <span class="text-xs text-gray-500">v1.3</span></h1>
 </header>
 
 <main class="flex-grow flex items-center justify-center p-4 relative">
@@ -18,7 +18,7 @@
     <section id="view-menu" class="w-full max-w-md space-y-6 text-center">
         <div class="mb-8">
             <h2 class="text-3xl font-bold mb-2">Menu Principal</h2>
-            <p class="text-gray-400 text-sm">Carregue seu deck ou crie um.</p>
+            <p class="text-gray-400 text-sm">Carregue seu baralho ou crie um.</p>
         </div>
 
         <div class="bg-gray-800 p-4 rounded-lg border border-gray-700">
@@ -29,7 +29,7 @@
                 file:text-sm file:font-semibold
                 file:bg-blue-600 file:text-white
                 hover:file:bg-blue-700 cursor-pointer"/>
-            <p id="deck-info" class="mt-2 text-xs text-yellow-500 italic">Carregando deck...</p>
+            <p id="deck-info" class="mt-2 text-xs text-yellow-500 italic">Carregando baralho...</p>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -43,10 +43,10 @@
 
         <div class="grid grid-cols-2 gap-4">
             <button id="btn-create-deck" class="p-3 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 font-bold text-yellow-500 transition-colors">
-                ✨ Criar Deck
+                ✨ Criar Baralho
             </button>
             <button id="btn-edit-deck" class="p-3 rounded bg-gray-700 hover:bg-gray-600 border border-gray-600 font-bold text-blue-400 transition-colors">
-                ✏️ Editar Atual
+                ✏️ Editar Baralho
             </button>
         </div>
 
@@ -59,7 +59,7 @@
         </button>
         
         <button id="btn-settings" class="text-sm text-gray-500 underline hover:text-white cursor-pointer bg-transparent border-none">
-            Configurações / Instruções
+            Configurações
         </button>
     </section>
 
@@ -91,14 +91,14 @@
     </section>
 
     <section id="view-game" class="hidden w-full max-w-2xl flex flex-col items-center">
-        <div class="w-full max-w-md flex justify-between items-center mb-6 px-2">
+        <div class="w-full max-w-md flex justify-between items-center mb-4 px-2">
             <div class="flex flex-col items-center bg-gray-800/80 px-4 py-2 rounded-lg border border-green-900 min-w-[80px]">
                 <span class="text-[10px] uppercase text-gray-400 tracking-wider">Acertos</span>
                 <span id="score-correct" class="text-2xl font-bold text-green-400 leading-none">0</span>
             </div>
 
-            <div class="flex flex-col items-center justify-center w-16 h-16 bg-gray-800 rounded-full border-2 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-                <span id="timer-display" class="text-xl font-mono font-bold text-white">--</span>
+            <div class="flex flex-col items-center justify-center px-4 py-2 bg-gray-800 rounded-lg border-2 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] min-w-[120px]">
+                <span id="timer-display" class="text-lg font-mono font-bold text-white tracking-widest">00:00:00</span>
             </div>
 
             <div class="flex flex-col items-center bg-gray-800/80 px-4 py-2 rounded-lg border border-red-900 min-w-[80px]">
@@ -107,15 +107,18 @@
             </div>
         </div>
 
-        <div class="perspective-1000 w-full h-80 cursor-pointer group mb-8" id="card-container">
+        <div class="mb-2 bg-gray-800 px-3 py-1 rounded-full border border-gray-600 text-xs font-mono text-blue-300 shadow-sm">
+            Card <span id="card-counter" class="font-bold text-white">--/--</span>
+        </div>
+
+        <div class="perspective-1000 w-full h-80 cursor-pointer group mb-6" id="card-container">
             <div class="card-inner text-center transform-style-3d shadow-2xl rounded-xl border border-gray-600">
                 <div class="absolute w-full h-full backface-hidden bg-gray-800 rounded-xl flex flex-col justify-center items-center p-6">
-                    <h3 class="text-xs uppercase tracking-widest text-blue-400 mb-4">Pergunta</h3>
+                    <h3 class="text-xs uppercase tracking-widest text-blue-400 mb-4">Frente</h3>
                     <p id="card-front-text" class="text-xl md:text-2xl font-semibold leading-relaxed">Carregando...</p>
-                    <p class="mt-4 text-xs text-gray-500">(Toque para virar)</p>
                 </div>
                 <div class="absolute w-full h-full backface-hidden bg-gray-700 rounded-xl flex flex-col justify-center items-center p-6 rotate-y-180 border-2 border-blue-500/30">
-                    <h3 class="text-xs uppercase tracking-widest text-green-400 mb-4">Resposta</h3>
+                    <h3 class="text-xs uppercase tracking-widest text-green-400 mb-4">Verso</h3>
                     <p id="card-back-text" class="text-lg md:text-xl font-medium text-white leading-relaxed">...</p>
                 </div>
             </div>
@@ -123,12 +126,23 @@
 
         <div class="w-full max-w-md space-y-4">
             <div id="controls-reveal" class="flex gap-4">
-                <button id="btn-skip" class="flex-1 py-4 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-200 font-semibold shadow-lg transition">Não Sei (Pular)</button>
-                <button id="btn-flip" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold shadow-lg transition">Mostrar Resposta</button>
+                <button id="btn-skip" class="flex-1 py-4 bg-gray-600 hover:bg-gray-500 rounded-lg text-gray-200 font-semibold shadow-lg transition">
+                    Pular ⏭️
+                </button>
+                <button id="btn-flip" class="flex-1 py-4 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold shadow-lg transition">
+                    Mostrar Verso
+                </button>
             </div>
-            <div id="controls-judge" class="hidden flex gap-4">
-                <button id="btn-wrong" class="flex-1 py-4 bg-red-600 hover:bg-red-500 rounded-lg text-white font-bold shadow-lg transition">Errei ❌</button>
-                <button id="btn-correct" class="flex-1 py-4 bg-green-600 hover:bg-green-500 rounded-lg text-white font-bold shadow-lg transition">Acertei ✅</button>
+
+            <div id="controls-judge" class="hidden flex flex-col gap-3">
+                <button id="btn-review-question" class="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded border border-gray-600 text-yellow-400 text-sm font-bold transition">
+                    Rever Frente
+                </button>
+
+                <div class="flex gap-4">
+                    <button id="btn-wrong" class="flex-1 py-4 bg-red-600 hover:bg-red-500 rounded-lg text-white font-bold shadow-lg transition">Errei ❌</button>
+                    <button id="btn-correct" class="flex-1 py-4 bg-green-600 hover:bg-green-500 rounded-lg text-white font-bold shadow-lg transition">Acertei ✅</button>
+                </div>
             </div>
         </div>
 
@@ -154,12 +168,12 @@
                 </div>
 
                 <div class="space-y-1 flex-grow">
-                    <label class="text-xs text-blue-400 font-bold">FRENTE (Pergunta)</label>
+                    <label class="text-xs text-blue-400 font-bold">FRENTE</label>
                     <textarea id="editor-input-front" class="w-full h-24 bg-gray-900 p-3 rounded border border-gray-600 focus:border-blue-500 text-white resize-none"></textarea>
                 </div>
 
                 <div class="space-y-1 flex-grow">
-                    <label class="text-xs text-green-400 font-bold">VERSO (Resposta)</label>
+                    <label class="text-xs text-green-400 font-bold">VERSO</label>
                     <textarea id="editor-input-back" class="w-full h-24 bg-gray-900 p-3 rounded border border-gray-600 focus:border-green-500 text-white resize-none"></textarea>
                 </div>
 
@@ -213,19 +227,34 @@
     </section>
 
     <section id="view-settings" class="hidden w-full max-w-md bg-gray-800 p-6 rounded-lg border border-gray-700">
-        <h3 class="text-xl font-bold mb-4">Config</h3>
-        <ul class="text-sm text-gray-300 list-disc pl-5 space-y-2 mb-6">
-            <li>Carregue um JSON no formato <code>[{"front": "P", "back": "R"}]</code>.</li>
-            <li>No modo velocidade, você tem 60 segundos.</li>
-            <li>Seja honesto na autoavaliação!</li>
-        </ul>
-        <h4 class="font-bold mb-2">JSON Exemplo (Copie e salve):</h4>
-            <textarea class="w-full h-32 bg-gray-900 text-xs font-mono p-2 rounded mb-4 border border-gray-600" readonly>[
-                {"front": "Emitir Moeda", "back": "União (Competência Exclusiva - Art. 21)"},
-                {"front": "Cuidar da saúde", "back": "Competência Comum (Todos - Art. 23)"}
-                ]
-            </textarea>
-        <button id="btn-settings-back" class="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded transition">Voltar</button>
+        <h3 class="text-xl font-bold mb-6 text-blue-400 border-b border-gray-700 pb-2">Configurações</h3>
+        
+        <div class="mb-6">
+            <label class="block text-sm font-bold text-gray-300 mb-2">
+                ⏱️ Tempo do Modo Velocidade (segundos)
+            </label>
+            <div class="flex gap-4 items-center">
+                <input type="number" id="setting-time-input" min="10" max="3600" value="60" 
+                    class="w-full bg-gray-900 text-white p-3 rounded border border-gray-600 focus:border-blue-500 outline-none font-mono font-bold text-center">
+                <span class="text-xs text-gray-500 w-1/3">Padrão: 60s</span>
+            </div>
+        </div>
+
+        <div class="mb-6 space-y-2">
+            <h4 class="text-sm font-bold text-gray-400">Instruções:</h4>
+            <ul class="text-xs text-gray-500 list-disc pl-5 space-y-1">
+                <li>O arquivo JSON deve conter <code>front</code> e <code>back</code>.</li>
+                <li>No editor, clique em "Salvar no App" para não perder dados.</li>
+            </ul>
+        </div>
+
+        <button id="btn-settings-save" class="w-full py-3 bg-green-600 hover:bg-green-500 rounded font-bold text-white shadow-lg transition mb-3">
+            Salvar Configurações
+        </button>
+        
+        <button id="btn-settings-back" class="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded text-gray-300 transition">
+            Cancelar / Voltar
+        </button>
     </section>
 
 </main>

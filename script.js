@@ -1,3 +1,11 @@
+// Função auxiliar para formatar HH:MM:SS
+function formatTime(seconds) {
+    const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+    const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+    const s = (seconds % 60).toString().padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+
 // --- GERENCIADOR DE TELAS ---
 const viewManager = {
     show(viewId) {
@@ -225,10 +233,20 @@ const game = {
     timer: null,
     timeElapsed: 0,
     timeLeft: 60,
+    config: { speedTime: 60 },
     stats: { correct: 0, wrong: 0, skipped: 0 },
     isCardFlipped: false,
 
     init() {
+        // Carrega configuração salva
+        const savedConfig = localStorage.getItem('flashcards_config');
+        if (savedConfig) {
+            this.config = JSON.parse(savedConfig);
+        }
+        
+        // Atualiza o input do HTML com o valor carregado
+        document.getElementById('setting-time-input').value = this.config.speedTime;
+        
         // Tenta carregar deck salvo no navegador
         const savedData = localStorage.getItem('flashcards_saved_deck');
         
@@ -267,6 +285,7 @@ const game = {
         // Botões de Jogo
         document.getElementById('card-container').addEventListener('click', () => this.flip()); // Flip ao clicar no card
         document.getElementById('btn-flip').addEventListener('click', () => this.flip());
+        document.getElementById('btn-review-question').addEventListener('click', () => this.toggleFlip());
         document.getElementById('btn-skip').addEventListener('click', () => this.skipCard());
         document.getElementById('btn-wrong').addEventListener('click', () => this.submitAnswer(false));
         document.getElementById('btn-correct').addEventListener('click', () => this.submitAnswer(true));
@@ -274,7 +293,11 @@ const game = {
         
         // Botões de Navegação
         document.getElementById('btn-back-menu').addEventListener('click', () => location.reload());
-        document.getElementById('btn-settings-back').addEventListener('click', () => viewManager.show('menu'));
+        document.getElementById('btn-settings-back').addEventListener('click', () => {
+            // Reseta o input para o valor que estava salvo antes de editar
+            document.getElementById('setting-time-input').value = this.config.speedTime;
+            viewManager.show('menu');
+        });
 
         // LISTENERS DE HISTÓRICO
         document.getElementById('btn-history').addEventListener('click', () => viewManager.show('history'));
@@ -317,6 +340,24 @@ const game = {
                 () => viewManager.show('menu'), 
                 "Sair sem Salvar"
             );
+        });
+
+        // LISTENER Salvar Configurações
+        document.getElementById('btn-settings-save').addEventListener('click', () => {
+            const val = parseInt(document.getElementById('setting-time-input').value);
+            if (val && val > 0) {
+                this.config.speedTime = val;
+                localStorage.setItem('flashcards_config', JSON.stringify(this.config));
+                
+                // Atualiza o texto do botão do menu para refletir a mudança
+                const btnText = document.getElementById('btn-mode-speed');
+                if(btnText) btnText.innerHTML = `Modo Velocidade (${val}s)`;
+
+                modalManager.alert("Sucesso", "Configurações salvas!");
+                viewManager.show('menu');
+            } else {
+                modalManager.alert("Erro", "Insira um tempo válido (maior que 0).");
+            }
         });
     },
 
@@ -373,7 +414,7 @@ const game = {
 
         // Lógica de Timer
         if (this.mode === 'speed') {
-            this.timeLeft = 60;
+            this.timeLeft = this.config.speedTime;
             this.startTimerSpeed();
         } else {
             this.startTimerFree();
@@ -383,15 +424,22 @@ const game = {
     // Timer para Modo Velocidade (Decrementa limite, Incrementa decorrido)
     startTimerSpeed() {
         const timerDisplay = document.getElementById('timer-display');
-        timerDisplay.innerText = this.timeLeft;
+        // Define o inicial formatado
+        timerDisplay.innerText = formatTime(this.timeLeft);
         
         if (this.timer) clearInterval(this.timer);
         
         this.timer = setInterval(() => {
             this.timeLeft--;
-            this.timeElapsed++; // AGORA CONTA O TEMPO
-            timerDisplay.innerText = this.timeLeft;
+            this.timeElapsed++;
             
+            // Atualiza formatado
+            timerDisplay.innerText = formatTime(this.timeLeft);
+            
+            // Alerta visual quando faltar pouco (opcional, mas bom UX)
+            if (this.timeLeft <= 10) timerDisplay.classList.add('text-red-500');
+            else timerDisplay.classList.remove('text-red-500');
+
             if (this.timeLeft <= 0) {
                 this.endGame();
             }
@@ -401,13 +449,15 @@ const game = {
     // Timer para Modo Livre (Apenas incrementa decorrido visualmente ou em background)
     startTimerFree() {
         const timerDisplay = document.getElementById('timer-display');
-        timerDisplay.innerText = "0"; // Começa do 0
+        timerDisplay.innerText = "00:00:00";
+        timerDisplay.classList.remove('text-red-500');
         
         if (this.timer) clearInterval(this.timer);
 
         this.timer = setInterval(() => {
-            this.timeElapsed++; // AGORA CONTA O TEMPO
-            timerDisplay.innerText = this.timeElapsed; // Mostra o tempo subindo
+            this.timeElapsed++;
+            // Atualiza formatado
+            timerDisplay.innerText = formatTime(this.timeElapsed);
         }, 1000);
     },
 
@@ -419,9 +469,13 @@ const game = {
 
         const cardData = this.activeDeck[this.currentCardIndex];
         const cardContainer = document.getElementById('card-container');
+
+        document.getElementById('card-counter').innerText = `${this.currentCardIndex + 1}/${this.activeDeck.length}`;
         
         cardContainer.classList.remove('card-flip');
         this.isCardFlipped = false;
+
+        document.getElementById('btn-review-question').innerText = "Rever Frente";
 
         // Delay pequeno para evitar glitch visual durante a animação de reset
         setTimeout(() => {
@@ -440,6 +494,22 @@ const game = {
         document.getElementById('controls-reveal').classList.add('hidden');
         document.getElementById('controls-judge').classList.remove('hidden');
     },
+
+    // Nova função para o botão de revisão
+    toggleFlip() {
+        const cardContainer = document.getElementById('card-container');
+        const btnReview = document.getElementById('btn-review-question');
+        
+        if (cardContainer.classList.contains('card-flip')) {
+            // Está mostrando a resposta, vira para a pergunta
+            cardContainer.classList.remove('card-flip');
+            btnReview.innerText = "Ver a Resposta";
+        } else {
+            // Está na pergunta, vira para a resposta
+            cardContainer.classList.add('card-flip');
+            btnReview.innerText = "Rever Frente";
+        }
+    },  
 
     skipCard() {
         this.stats.skipped++;
