@@ -269,6 +269,8 @@ const game = {
             info.className = "mt-2 text-xs text-gray-500";
         }
 
+        loadLibraryIndex();
+
         this.setupEventListeners();
     },
 
@@ -291,8 +293,29 @@ const game = {
         document.getElementById('btn-correct').addEventListener('click', () => this.submitAnswer(true));
         document.getElementById('btn-quit').addEventListener('click', () => this.quit());
         
+        // --- LÓGICA DA SANFONA (ACORDEÃO) ---
+        const btnToggle = document.getElementById('btn-toggle-library');
+        if (btnToggle) {
+            btnToggle.addEventListener('click', () => {
+                const grid = document.getElementById('library-grid');
+                const arrow = document.getElementById('library-arrow');
+                
+                // Alterna visibilidade
+                if (grid.classList.contains('hidden')) {
+                    grid.classList.remove('hidden');
+                    arrow.style.transform = 'rotate(0deg)'; // Seta pra baixo
+                } else {
+                    grid.classList.add('hidden');
+                    arrow.style.transform = 'rotate(-90deg)'; // Seta pro lado
+                }
+            });
+        }
+
         // Botões de Navegação
-        document.getElementById('btn-back-menu').addEventListener('click', () => location.reload());
+        document.getElementById('btn-back-menu').addEventListener('click', () => {
+            viewManager.show('menu');
+            loadLibraryIndex(); // Garante que o deck atual continue verde na lista
+        });
         document.getElementById('btn-settings-back').addEventListener('click', () => {
             // Reseta o input para o valor que estava salvo antes de editar
             document.getElementById('setting-time-input').value = this.config.speedTime;
@@ -580,6 +603,140 @@ const game = {
         return array;
     }
 };
+
+// Função que renderiza a Biblioteca (Local + Nuvem)
+async function loadLibraryIndex() {
+    const container = document.getElementById('library-grid');
+    if (!container) return;
+
+    container.innerHTML = ''; // Limpa loading
+
+    // 1. DECK LOCAL (Salvo no App)
+    const localData = localStorage.getItem('flashcards_saved_deck');
+    if (localData) {
+        try {
+            const parsed = JSON.parse(localData);
+            createLibraryCard(container, {
+                type: 'local',
+                title: `💾 ${parsed.name}`,
+                description: `Salvo no dispositivo • ${parsed.deck.length} cards`,
+                data: parsed.deck,
+                name: parsed.name
+            });
+        } catch (e) { console.error("Erro ao ler save local"); }
+    }
+
+    // 2. DECKS DA NUVEM (Fetch do lista.json)
+    try {
+        const response = await fetch('decks/lista.json');
+        if (response.ok) {
+            const cloudDecks = await response.json();
+            cloudDecks.forEach(deckInfo => {
+                createLibraryCard(container, {
+                    type: 'cloud',
+                    title: deckInfo.title,
+                    description: deckInfo.description,
+                    file: deckInfo.file
+                });
+            });
+        } else {
+            // Se der erro no fetch (ex: rodando local sem server), mostra aviso discreto
+            const errDiv = document.createElement('div');
+            errDiv.className = "text-[10px] text-center text-gray-600 italic p-2";
+            errDiv.innerText = "Conecte à internet para ver mais decks.";
+            container.appendChild(errDiv);
+        }
+    } catch (error) {
+        console.log("Modo offline ou sem servidor local.");
+    }
+}
+
+// Função auxiliar para criar o visual do card
+function createLibraryCard(container, item) {
+    const card = document.createElement('div');
+    
+    // LÓGICA DE DESTAQUE
+    const isSelected = (game.currentDeckName === item.title) || (game.currentDeckName === item.name);
+    
+    let borderColor, bgColor, statusBadge, opacity;
+
+    if (isSelected) {
+        // Estilo ATIVO (Verde Neon)
+        borderColor = 'border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)] scale-[1.02]';
+        bgColor = 'bg-gradient-to-br from-green-900/40 to-gray-800';
+        statusBadge = '<span class="absolute top-2 right-2 w-2 h-2 bg-green-500 rounded-full shadow-glow"></span>';
+        opacity = 'opacity-100';
+    } else {
+        // Estilo INATIVO (Discreto)
+        borderColor = 'border-gray-700 hover:border-blue-500 hover:scale-[1.02]';
+        bgColor = 'bg-gray-800';
+        statusBadge = '';
+        opacity = 'opacity-70 hover:opacity-100';
+    }
+    
+    // Configuração do Card Quadrado (h-32 define a altura fixa)
+    card.className = `${bgColor} ${opacity} h-32 p-3 rounded-xl border-2 ${borderColor} cursor-pointer transition-all duration-200 flex flex-col items-center justify-center text-center relative group`;
+    
+    // Ícone baseado no tipo
+    const icon = item.type === 'local' ? '💾' : '📜';
+    const actionText = item.type === 'local' ? 'Editar' : 'Baixar';
+
+    card.innerHTML = `
+        ${statusBadge}
+        <div class="text-2xl mb-2 filter drop-shadow-md">${icon}</div>
+        <h4 class="font-bold text-xs text-gray-100 leading-tight line-clamp-2 mb-1">${item.title}</h4>
+        <span class="text-[10px] text-blue-400 font-mono mt-auto">${item.data ? item.data.length : '?'} cards</span>
+    `;
+
+    card.addEventListener('click', () => loadDeckFromLibrary(item));
+    container.appendChild(card);
+}
+
+// Função que trata o clique
+async function loadDeckFromLibrary(item) {
+    // CASO 1: Deck Local
+    if (item.type === 'local') {
+        game.deck = item.data;
+        game.currentDeckName = item.name;
+        updateGameInfo(item.name, item.data.length);
+        
+        // 1. ATUALIZA O VISUAL (Isso deixa verde)
+        loadLibraryIndex(); 
+        
+        // 2. ENCERRA AQUI (Para não tentar baixar da nuvem)
+        return; 
+    }
+
+    // CASO 2: Deck da Nuvem
+    //modalManager.alert("Baixando...", "Conectando ao servidor...");
+    try {
+        const response = await fetch(`decks/${item.file}`);
+        if (!response.ok) throw new Error("Erro no download");
+        
+        const json = await response.json();
+        if (!Array.isArray(json)) throw new Error("Formato inválido");
+
+        game.deck = json;
+        game.currentDeckName = item.title;
+        updateGameInfo(item.title, json.length);
+        
+        //modalManager.alert("Sucesso", `Deck baixado com sucesso!`);
+        
+        // ATUALIZA O VISUAL TAMBÉM NO SUCESSO DA NUVEM
+        loadLibraryIndex();
+
+    } catch (error) {
+        console.error(error);
+        modalManager.alert("Erro", "Não foi possível baixar o deck.");
+    }
+}
+
+// Atualiza o texto informativo no menu
+function updateGameInfo(name, count) {
+    const info = document.getElementById('deck-info');
+    info.innerText = `Ativo: ${name} (${count} cards)`;
+    info.className = "mt-2 text-xs text-blue-400 font-bold";
+}
 
 // Inicializa quando o DOM estiver pronto
 document.addEventListener('DOMContentLoaded', () => game.init());

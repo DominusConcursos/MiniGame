@@ -10,7 +10,7 @@
 <body class="bg-gray-900 text-white min-h-screen flex flex-col font-sans">
 
 <header class="bg-gray-800 p-4 shadow-lg flex justify-center items-center border-b border-gray-700">
-    <h1 class="text-xl font-bold text-blue-400">Flashcards Engine <span class="text-xs text-gray-500">v1.3</span></h1>
+    <h1 class="text-xl font-bold text-blue-400">Flashcards Engine <span class="text-xs text-gray-500">v1.4</span></h1>
 </header>
 
 <main class="flex-grow flex items-center justify-center p-4 relative">
@@ -30,6 +30,22 @@
                 file:bg-blue-600 file:text-white
                 hover:file:bg-blue-700 cursor-pointer"/>
             <p id="deck-info" class="mt-2 text-xs text-yellow-500 italic">Carregando baralho...</p>
+        </div>
+
+        <div class="w-full text-left space-y-2 bg-gray-800/50 rounded-xl border border-gray-700 overflow-hidden shadow-lg">
+            
+            <button id="btn-toggle-library" class="w-full flex justify-between items-center p-4 bg-gray-800 hover:bg-gray-750 transition outline-none border-b border-gray-700/50">
+                <div class="flex flex-col items-start">
+                    <span class="text-sm font-bold text-blue-400 flex items-center gap-2">
+                        📚 Biblioteca
+                    </span>
+                </div>
+                <span id="library-arrow" class="text-gray-400 transform -rotate-90 transition-transform duration-300">▼</span>
+            </button>
+            
+            <div id="library-grid" class="hidden grid grid-cols-2 gap-3 max-h-80 overflow-y-auto p-3 custom-scrollbar bg-gray-900/30 transition-all duration-300">
+                <div class="col-span-2 text-center text-xs text-gray-500 py-4">Carregando...</div>
+            </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
